@@ -135,7 +135,7 @@ func elastic7CreateIndexIfNotExists(client *elastic7.Client, index string, mappi
 	}
 	if !exists {
 		createIndex, err := client.CreateIndex(mappingIndex).Body(`{"mappings":{}}`).Do(context.TODO())
-		if createIndex.Acknowledged {
+		if err == nil && createIndex.Acknowledged {
 			return INDEX_CREATED, err
 		}
 		return INDEX_CREATION_FAILED, err
@@ -152,13 +152,13 @@ func elastic6CreateIndexIfNotExists(client *elastic6.Client, index string, mappi
 	if err != nil {
 		return INDEX_CREATION_FAILED, err
 	}
+	log.Printf("[INFO] elastic6CreateIndexIfNotExists: %+v %+v", index, exists)
 	if !exists {
 		createIndex, err := client.CreateIndex(mapping_index).Body(`{"mappings":{}}`).Do(context.TODO())
-		if createIndex.Acknowledged {
+		if err == nil && createIndex.Acknowledged {
 			return INDEX_CREATED, err
-		} else {
-			return INDEX_CREATION_FAILED, err
 		}
+		return INDEX_CREATION_FAILED, err
 	}
 
 	return INDEX_EXISTS, nil

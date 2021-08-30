@@ -80,6 +80,74 @@ func TestAccElasticsearchKibanaObject_ProviderFormatInvalid(t *testing.T) {
 	})
 }
 
+func TestAccElasticsearchKibanaObject_CreateIndex(t *testing.T) {
+	provider := Provider()
+	diags := provider.Configure(context.Background(), &terraform.ResourceConfig{})
+	if diags.HasError() {
+		t.Skipf("err: %#v", diags)
+	}
+
+	mapping := `{
+		"mappings":{
+		}
+	}`
+
+	// use elastic to create an index and an alias
+	meta := provider.Meta()
+	esClient, err := getClient(meta.(*ProviderConf))
+	if err != nil {
+		t.Skipf("err: %s", err)
+	}
+	switch client := esClient.(type) {
+	case *elastic7.Client:
+		ctx := context.Background()
+		createIndex, err := client.CreateIndex(".kibana_object_create_index_1").BodyString(mapping).Do(ctx)
+		if err != nil {
+			t.Errorf("err: %#v", err)
+		}
+		if !createIndex.Acknowledged {
+			t.Errorf("couldn't create index: %+v", createIndex)
+		}
+		createAlias, err := client.Alias().Add(".kibana_object_create_index_1", ".kibana_object_create_index").Do(ctx)
+		if err != nil {
+			t.Errorf("err: %#v", err)
+		}
+		if !createIndex.Acknowledged {
+			t.Errorf("couldn't create alias: %+v", createAlias)
+		}
+	case *elastic6.Client:
+		ctx := context.Background()
+		createIndex, err := client.CreateIndex(".kibana_object_create_index_1").BodyString(mapping).Do(ctx)
+		if err != nil {
+			t.Errorf("err: %#v", err)
+		}
+		if !createIndex.Acknowledged {
+			t.Errorf("couldn't create index: %+v", createIndex)
+		}
+		createAlias, err := client.Alias().Add(".kibana_object_create_index_1", ".kibana_object_create_index").Do(ctx)
+		if err != nil {
+			t.Errorf("err: %#v", err)
+		}
+		if !createIndex.Acknowledged {
+			t.Errorf("couldn't create alias: %+v", createAlias)
+		}
+	default:
+		t.Errorf("unsupported client")
+	}
+
+	// should fail due to conflict
+	resource.Test(t, resource.TestCase{
+		Providers:    testAccProviders,
+		CheckDestroy: testCheckElasticsearchKibanaObjectDestroy,
+		Steps: []resource.TestStep{
+			{
+				Config:      testAccElasticsearchKibanaObjectCreateIndex,
+				ExpectError: regexp.MustCompile("must be an array of objects"),
+			},
+		},
+	})
+}
+
 func TestAccElasticsearchKibanaObject_Rejected(t *testing.T) {
 	provider := Provider()
 	diags := provider.Configure(context.Background(), &terraform.ResourceConfig{})
@@ -274,6 +342,27 @@ resource "elasticsearch_kibana_object" "test_pattern" {
 		"_source": {
 			"title": "cloudwatch-*",
 			"timeFieldName": "timestamp"
+		}
+	}
+]
+EOF
+}
+`
+
+var testAccElasticsearchKibanaObjectCreateIndex = `
+resource "elasticsearch_kibana_object" "test_pattern" {
+	index = ".kibana_object_create_index"
+  body = <<EOF
+[
+  {
+		"_id": "index-pattern:cloudwatch",
+		"_type": "_doc",
+		"_source": {
+			"type": "index-pattern",
+			"index-pattern": {
+				"title": "cloudwatch-*",
+				"timeFieldName": "timestamp"
+			}
 		}
 	}
 ]
